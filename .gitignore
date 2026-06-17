@@ -1,0 +1,11 @@
+# Python virtual environment
+venv/
+
+# Byte-compiled files
+__pycache__/
+
+# Environment variables / secrets
+.env
+
+# Amplify build output (added later in the course)
+amplify_outputs.json
