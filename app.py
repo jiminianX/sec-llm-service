@@ -36,11 +36,56 @@ class SecEdgar:
         if ticker not in self.ticker_dict:
             raise KeyError(f"Ticker '{ticker}' not found in EDGAR data")
         return tuple(self.ticker_dict[ticker])
+    
+    def _company_recent_filings(self, cik):
+        headers = {"user-agent": "NYU jj3945@nyu.edu"}
+        r = requests.get(f"https://data.sec.gov/submissions/CIK{"0" * (10 - len(cik))}{cik}.json", headers=headers)
+        return r.json()
+    
+    def _filing_url(self, cik, accession_number, primary_document):
+        accession_number = accession_number.replace("-", "")
+        return f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{primary_document}"
+
+    def _filter_filings(self, cik, form, year, quarter=None):
+        filings = self._company_recent_filings(cik)
+        recent = filings["filings"]["recent"]
+        year = str(year)
+        results = []
+
+        for i in range(len(recent["accessionNumber"])):
+            filing_date = recent["filingDate"][i]
+            if recent["form"][i] != form or filing_date[:4] != year:
+                continue
+            if quarter is not None and (int(filing_date[5:7]) - 1) // 3 + 1 != quarter:
+                continue
+
+            results.append({
+                "form": recent["form"][i],
+                "filingDate": filing_date,
+                "accessionNumber": recent["accessionNumber"][i],
+                "primaryDocument": recent["primaryDocument"][i],
+                "url": self._filing_url(cik, recent["accessionNumber"][i], recent["primaryDocument"][i]),
+            })
+
+        return results
+
+    def annual_filing(self, cik, year):
+        return self._filter_filings(cik, "10-K", year)
+
+    def quarterly_filing(self, cik, year, quarter):
+        return self._filter_filings(cik, "10-Q", year, quarter)
+
 
 se = SecEdgar('https://www.sec.gov/files/company_tickers.json')
 
-cik = se.name_to_cik('NVIDIA CORP')
+# cik = se.name_to_cik('NVIDIA CORP')
+# print(cik)
+
+# cik = se.ticker_to_cik('NVDA')
+# print(cik)
+
+cik = se.annual_filing("1045810", 2024)
 print(cik)
 
-cik = se.ticker_to_cik('NVDA')
+cik = se.quarterly_filing("1045810", 2025, 3)
 print(cik)
