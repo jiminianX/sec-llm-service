@@ -1,14 +1,16 @@
 import requests
+from bs4 import BeautifulSoup
 
 class SecEdgar:
     # EDGAR_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json'
+    USER_AGENT = "NYU jj3945@nyu.edu"
 
     def __init__(self, fileurl):
         self.fileurl = fileurl
         self.name_dict = {}
         self.ticker_dict = {}
 
-        headers = {'user-agent': 'NYU jj3945@nyu.edu', 'Accept-Encoding': 'gzip', 'Host': 'www.sec.gov'}
+        headers = {'user-agent': self.USER_AGENT, 'Accept-Encoding': 'gzip', 'Host': 'www.sec.gov'}
         r = requests.get(self.fileurl, headers=headers)
 
         self.filejson = r.json()
@@ -38,7 +40,7 @@ class SecEdgar:
         return tuple(self.ticker_dict[ticker])
     
     def _company_recent_filings(self, cik):
-        headers = {"user-agent": "NYU jj3945@nyu.edu"}
+        headers = {"user-agent": self.USER_AGENT}
         r = requests.get(f"https://data.sec.gov/submissions/CIK{"0" * (10 - len(cik))}{cik}.json", headers=headers)
         return r.json()
     
@@ -74,6 +76,18 @@ class SecEdgar:
 
     def quarterly_filing(self, cik, year, quarter):
         return self._filter_filings(cik, "10-Q", year, quarter)
+    
+    def get_filing_content(self, cik, accession_number, primary_document):
+        headers = {"user-agent": self.USER_AGENT}
+        file_url = self._filing_url(cik, accession_number, primary_document)
+        r = requests.get(file_url, headers=headers)
+        r.raise_for_status()
+
+        soup = BeautifulSoup(r.text, "html.parser")
+        for hidden in soup.select('[style*="display:none"], [style*="display: none"]'):
+            hidden.decompose()
+            
+        return soup.get_text(separator="\n", strip=True)
 
 
 se = SecEdgar('https://www.sec.gov/files/company_tickers.json')
@@ -84,8 +98,11 @@ se = SecEdgar('https://www.sec.gov/files/company_tickers.json')
 # cik = se.ticker_to_cik('NVDA')
 # print(cik)
 
-cik = se.annual_filing("1045810", 2024)
-print(cik)
+# cik = se.annual_filing("1045810", 2024)
+# print(cik)
 
-cik = se.quarterly_filing("1045810", 2025, 3)
-print(cik)
+# cik = se.quarterly_filing("1045810", 2025, 3)
+# print(cik)
+
+filing_content = se.get_filing_content("1045810", '0001045810-25-000209', 'nvda-20250727.htm')
+print(filing_content)
