@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sec-llm-service
+
+  SAM Template for sec-llm-service
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+  
+    LoggingConfig:
+      { LogFormat: JSON }
+
+Resources:
+  EdgarFileRefresh:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: edgar_refresh/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref EdgarFileBucket
+      Policies:
+      - S3CrudPolicy:
+          BucketName: !Ref EdgarFileBucket
+      Events:
+        DailyRefresh:
+          Type: Schedule # EventBridge cron expressions evaluate in UTC
+          Properties:
+            Schedule: cron(0 6 * * ? *) # daily at 06:00 UTC
+            Description: Daily refresh of SEC company_tickers.json into S3
+            Enabled: true
+
+  DocumentRetrieval:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: doc_retrieval/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref EdgarFileBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref EdgarFileBucket
+
+  EdgarFileBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+Outputs:
+  EdgarFileBucketName:
+    Description: S3 bucket holding the refreshed SEC company_tickers.json file
+    Value: !Ref EdgarFileBucket
+  EdgarFileRefreshFunction:
+    Description: EdgarFileRefresh Lambda Function ARN
+    Value: !GetAtt EdgarFileRefresh.Arn
+  EdgarFileRefreshFunctionIamRole:
+    Description: Implicit IAM Role created for EdgarFileRefresh function
+    Value: !GetAtt EdgarFileRefreshRole.Arn
+  DocumentRetrievalFunction:
+    Description: DocumentRetrieval Lambda Function ARN
+    Value: !GetAtt DocumentRetrieval.Arn
